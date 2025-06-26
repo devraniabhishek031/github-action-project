@@ -48,10 +48,14 @@ jobs:
       - name: 🚀 Push Docker Image to ECR
         run: docker push $ECR_REPO_URI:${{ steps.image-tag.outputs.tag }}
 
-      - name: 🔁 Deploy to Staging Server via SSH
-        run: |
-           sshpass -p "${{ secrets.EC2_PASSWORD_STG }}" ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT_STG }} ${{ secrets.EC2_USERNAME_STG }}@${{ secrets.EC2_HOST_STG }} 
-   
+      - name: 🔁 Deploy on EC2 via SSH (password auth)
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST_STG }}
+          username: ${{ secrets.EC2_USERNAME_STG }}
+          password: ${{ secrets.EC2_PASSWORD_STG }}
+          port: ${{ secrets.EC2_PORT_STG }}
+          script: |
             IMAGE=$ECR_REPO_URI:${{ steps.image-tag.outputs.tag }}
             echo "🔄 Pulling image: $IMAGE"
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
