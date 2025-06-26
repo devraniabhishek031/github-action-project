@@ -1,0 +1,75 @@
+name: CI/CD - ECS Deploy
+
+on:
+  push:
+    branches:
+      - staging
+  workflow_dispatch:
+
+jobs:
+  build-push-deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      ECR_REPO_URI: ${{ secrets.ECR_REPOSITORY_URI }}
+
+    steps:
+      - name: ⬇️ Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: 📦 Install Dependencies
+        run: npm install
+
+      - name: 🕓 Generate Image Tag with Timestamp
+        id: image-tag
+        run: echo "tag=staging-$(date -u +'%Y-%m-%dT%H-%M-%S')" >> "$GITHUB_OUTPUT"
+
+      - name: 🐳 Build Docker Image
+        run: docker build -t $ECR_REPO_URI:${{ steps.image-tag.outputs.tag }} .
+
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: 🔓 Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | \
+          docker login --username AWS --password-stdin $ECR_REPO_URI
+
+      - name: 🚀 Push Docker Image to ECR
+        run: docker push $ECR_REPO_URI:${{ steps.image-tag.outputs.tag }}
+
+      - name: 📝 Generate Task Definition from Template
+        id: render-task-def
+        run: |
+          IMAGE="$ECR_REPO_URI:${{ steps.image-tag.outputs.tag }}"
+          CPU=${{ secrets.TASK_CPU }}
+          MEMORY=${{ secrets.TASK_MEMORY }}
+
+          jq --arg IMAGE "$IMAGE" \
+             --argjson CPU "$CPU" \
+             --argjson MEMORY "$MEMORY" \
+             '.containerDefinitions[0].image = $IMAGE |
+              .containerDefinitions[0].cpu = $CPU |
+              .containerDefinitions[0].memory = $MEMORY |
+              .cpu = ($CPU | tostring) |
+              .memory = ($MEMORY | tostring)' \
+              .github/ecs-task-def.json > task-def-updated.json
+
+      - name: 🔁 Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: task-def-updated.json
+          service: ${{ secrets.ECS_SERVICE }}
+          cluster: ${{ secrets.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
