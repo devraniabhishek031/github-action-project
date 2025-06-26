@@ -1,0 +1,68 @@
+name: CI/CD - Staging Deploy
+
+on:
+  push:
+    branches:
+      - staging
+  workflow_dispatch:
+
+jobs:
+  build-push-ssh-deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      ECR_REPO_URI: ${{ secrets.ECR_REPOSITORY_URI }}
+
+    steps:
+      - name: ⬇️ Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: 📦 Install Dependencies
+        run: npm install
+
+      - name: 🕓 Generate Image Tag with Timestamp
+        id: image-tag
+        run: echo "tag=staging-$(date -u +'%Y-%m-%dT%H-%M-%S')" >> "$GITHUB_OUTPUT"
+
+      - name: 🐳 Build Docker Image
+        run: docker build -t $ECR_REPO_URI:${{ steps.image-tag.outputs.tag }} .
+
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: 🔓 Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | \
+          docker login --username AWS --password-stdin $ECR_REPO_URI
+
+      - name: 🚀 Push Docker Image to ECR
+        run: docker push $ECR_REPO_URI:${{ steps.image-tag.outputs.tag }}
+
+      - name: 🔁 Deploy to Staging Server via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            IMAGE=$ECR_REPO_URI:${{ steps.image-tag.outputs.tag }}
+            echo "🔄 Pulling image: $IMAGE"
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
+            docker pull $IMAGE
+
+            echo "🛑 Stopping and removing old container (if running)"
+            docker stop my-app || true
+            docker rm my-app || true
+
+            echo "🚀 Running new container"
+            docker run -d --name my-app -p 80:3000 $IMAGE
