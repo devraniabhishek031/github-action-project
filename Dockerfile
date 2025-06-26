@@ -1,16 +1,25 @@
-# Stage 1: Build
-FROM node:18-alpine as builder
+# -------- STAGE 1: Build --------
+FROM node:18-alpine AS builder
+
 WORKDIR /app
+
+# Copy package.json and install dependencies
 COPY package*.json ./
-RUN npm ci
+RUN npm install
+
+# Copy rest of the app
 COPY . .
 
-
-# Stage 2: Run
+# -------- STAGE 2: Production --------
 FROM node:18-alpine
+
 WORKDIR /app
+
+# Copy only necessary files from builder stage
 COPY --from=builder /app .
-ENV NODE_ENV=production
+
+# Expose app port
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=10s CMD curl -f http://localhost:3000/health || exit 1
-CMD [ "node", "src/index.js" ]
+
+# Run the app
+CMD ["node", "index.js"]
