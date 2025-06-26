@@ -52,4 +52,4 @@ jobs:
           username: ${{ secrets.STAGING_USER }}
           key: ${{ secrets.STAGING_SSH_KEY }}
           script: |
-            bash ~/deploy.sh $ECR_REPO_URI staging
+            bash ~/deploy.sh $ECR_REPO_URI staging  
