@@ -48,7 +48,7 @@ jobs:
       - name: 🚀 Push Docker Image to ECR
         run: docker push $ECR_REPO_URI:${{ steps.image-tag.outputs.tag }}
 
-      - name: 🔁 Deploy on EC2 via SSH (password auth)
+      - name: 🔁 Deploy to EC2 via SSH (password auth)
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST_STG }}
@@ -56,14 +56,20 @@ jobs:
           password: ${{ secrets.EC2_PASSWORD_STG }}
           port: ${{ secrets.EC2_PORT_STG }}
           script: |
-            IMAGE=$ECR_REPO_URI:${{ steps.image-tag.outputs.tag }}
-            echo "🔄 Pulling image: $IMAGE"
+            export AWS_REGION=${{ secrets.AWS_REGION }}
+            export ECR_REPO_URI=${{ secrets.ECR_REPOSITORY_URI }}
+            export IMAGE_TAG=${{ steps.image-tag.outputs.tag }}
+            IMAGE="$ECR_REPO_URI:$IMAGE_TAG"
+
+            echo "🔓 Logging into ECR..."
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
-            docker pull $IMAGE
+
+            echo "📥 Pulling image: $IMAGE"
+            docker pull $IMAGE || exit 1
 
             echo "🛑 Stopping and removing old container (if running)"
-            docker stop my-app || true
-            docker rm my-app || true
+            docker stop my-app || echo "No running container to stop"
+            docker rm my-app || echo "No container to remove"
 
             echo "🚀 Running new container"
             docker run -d --name my-app -p 80:3000 $IMAGE
