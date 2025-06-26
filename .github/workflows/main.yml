@@ -22,17 +22,15 @@ jobs:
         with:
           node-version: '18'
 
-      - name: 🟡 Setup Node.js
-        run: node -v
-
       - name: 📦 Install Dependencies
         run: npm install
 
-      # - name: 🧪 Run Tests
-      #   run: npm test
+      - name: 🕓 Generate Image Tag with Timestamp
+        id: image-tag
+        run: echo "tag=staging-$(date -u +'%Y-%m-%dT%H-%M-%S')" >> "$GITHUB_OUTPUT"
 
       - name: 🐳 Build Docker Image
-        run: docker build -t $ECR_REPO_URI:staging .
+        run: docker build -t $ECR_REPO_URI:${{ steps.image-tag.outputs.tag }} .
 
       - name: 🔐 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -46,8 +44,7 @@ jobs:
 
       - name: 🚀 Push Docker Image to ECR
         run: |
-          docker tag $ECR_REPO_URI:staging $ECR_REPO_URI:staging
-          docker push $ECR_REPO_URI:staging
+          docker push $ECR_REPO_URI:${{ steps.image-tag.outputs.tag }}
 
       - name: 🔁 Deploy to Staging Server (via SSH)
         uses: appleboy/ssh-action@master
@@ -56,4 +53,4 @@ jobs:
           username: ${{ secrets.STAGING_USER }}
           key: ${{ secrets.STAGING_SSH_KEY }}
           script: |
-            bash ~/deploy.sh $ECR_REPO_URI staging  
+            bash ~/deploy.sh $ECR_REPO_URI ${{ steps.image-tag.outputs.tag }}
