@@ -48,21 +48,33 @@ jobs:
       - name: 🚀 Push Docker Image to ECR
         run: docker push $ECR_REPO_URI:${{ steps.image-tag.outputs.tag }}
 
+      - name: 🧠 Export Full Image Name to Environment
+        run: echo "IMAGE=$ECR_REPO_URI:${{ steps.image-tag.outputs.tag }}" >> "$GITHUB_ENV"
+
       - name: 🔁 Deploy to Staging Server via SSH
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.STAGING_HOST }}
           username: ${{ secrets.STAGING_USER }}
           key: ${{ secrets.STAGING_SSH_KEY }}
+          envs: DOTENV_CONTENT,IMAGE,AWS_REGION,ECR_REPO_URI
           script: |
-            IMAGE=$ECR_REPO_URI:${{ steps.image-tag.outputs.tag }}
-            echo "🔄 Pulling image: $IMAGE"
-            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
+            echo "📦 Writing .env file"
+            echo "$DOTENV_CONTENT" > .env
+
+            echo "🔐 Logging in to ECR"
+            aws ecr get-login-password --region $AWS_REGION | \
+            docker login --username AWS --password-stdin $ECR_REPO_URI
+
+            echo "📥 Pulling Docker image: $IMAGE"
             docker pull $IMAGE
 
             echo "🛑 Stopping and removing old container (if running)"
             docker stop my-app || true
             docker rm my-app || true
 
-            echo "🚀 Running new container"
-            docker run -d --name my-app -p 80:3000 $IMAGE
+            echo "🚀 Starting new container with .env"
+            docker run -d --name my-app --env-file .env -p 80:3000 $IMAGE
+
+            echo "🧹 Cleaning up .env file"
+            rm .env
