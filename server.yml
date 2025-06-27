@@ -78,3 +78,22 @@ jobs:
 
             echo "🧹 Cleaning up .env file"
             rm .env
+
+
+
+
+
+
+#             - name: 📁 Save SSH Private Key
+#   run: |
+#     echo "${{ secrets.SSH_PRIVATE_KEY }}" > private_key.pem
+#     chmod 600 private_key.pem
+
+# - name: 🟢 Run SSH Command Directly
+#   run: |
+#     ssh -i private_key.pem -p ${{ secrets.SSH_PORT }} -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+#       echo "✅ Logged in!"
+#       docker ps
+#       # Add more deployment commands here
+#     EOF
+
