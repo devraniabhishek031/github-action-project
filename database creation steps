@@ -1,0 +1,45 @@
+nstall and configure a MySQL server
+MySQL is a fast, multi-threaded, multi-user, and robust SQL database server. It is intended for mission-critical, heavy-load production systems and mass-deployed software.
+
+Install MySQL
+To install MySQL, run the following command from a terminal prompt:
+
+sudo apt install mysql-server
+Once the installation is complete, the MySQL server should be started automatically. You can quickly check its current status via systemd:
+
+sudo service mysql status
+Which should provide an output like the following:
+
+● mysql.service - MySQL Community Server
+   Loaded: loaded (/lib/systemd/system/mysql.service; enabled; vendor preset: enabled)
+   Active: active (running) since Tue 2019-10-08 14:37:38 PDT; 2 weeks 5 days ago
+ Main PID: 2028 (mysqld)
+    Tasks: 28 (limit: 4915)
+   CGroup: /system.slice/mysql.service
+           └─2028 /usr/sbin/mysqld --daemonize --pid-file=/run/mysqld/mysqld.pid
+ Oct 08 14:37:36 db.example.org systemd[1]: Starting MySQL Community Server...
+Oct 08 14:37:38 db.example.org systemd[1]: Started MySQL Community Server.
+The network status of the MySQL service can also be checked by running the ss command at the terminal prompt:
+
+sudo ss -tap | grep mysql
+When you run this command, you should see something similar to the following:
+
+LISTEN    0         151              127.0.0.1:mysql             0.0.0.0:*       users:(("mysqld",pid=149190,fd=29))
+LISTEN    0         70                       *:33060                   *:*       users:(("mysqld",pid=149190,fd=32))
+If the server is not running correctly, you can type the following command to start it:
+
+sudo service mysql restart
+A good starting point for troubleshooting problems is the systemd journal, which can be accessed from the terminal prompt with this command:
+
+sudo journalctl -u mysql
+Configure MySQL
+You can edit the files in /etc/mysql/ to configure the basic settings – log file, port number, etc. For example, to configure MySQL to listen for connections from network hosts, in the file /etc/mysql/mysql.conf.d/mysqld.cnf, change the bind-address directive to the server’s IP address:
+
+bind-address            = 192.168.0.5
+Note
+
+Replace 192.168.0.5 with the appropriate address, which can be determined via the ip address show command.
+
+After making a configuration change, the MySQL daemon will need to be restarted with the following command:
+
+sudo systemctl restart mysql.service
