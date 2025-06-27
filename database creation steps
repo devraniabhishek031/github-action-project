@@ -43,3 +43,26 @@ Replace 192.168.0.5 with the appropriate address, which can be determined via th
 After making a configuration change, the MySQL daemon will need to be restarted with the following command:
 
 sudo systemctl restart mysql.service
+
+
+
+sudo mysql (this run in terminal in server)
+
+
+
+-- Replace 'username' and 'password' as needed
+CREATE USER 'username'@'%' IDENTIFIED BY 'your_password';
+GRANT ALL PRIVILEGES ON *.* TO 'username'@'%' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+
+sudo systemctl restart mysql
+
+
+mysql -h your-server-ip -u username -p   run form another server
+
+
+
+
+
+
+
