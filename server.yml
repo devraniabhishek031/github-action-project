@@ -1,4 +1,4 @@
-name: CI/CD - Staging Deploy
+name: abhishek-test
 
 on:
   push:
@@ -18,13 +18,10 @@ jobs:
       - name: ⬇️ Checkout Code
         uses: actions/checkout@v4
 
-      - name: 🟢 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: 📦 Install Dependencies
-        run: npm install
+      - name: 📦 Write .env file
+        run: echo "$DOTENV_CONTENT" > .env
+        env:
+          DOTENV_CONTENT: ${{ secrets.ENV_FILE_CONTENT }}
 
       - name: 🕓 Generate Image Tag with Timestamp
         id: image-tag
@@ -48,52 +45,30 @@ jobs:
       - name: 🚀 Push Docker Image to ECR
         run: docker push $ECR_REPO_URI:${{ steps.image-tag.outputs.tag }}
 
-      - name: 🧠 Export Full Image Name to Environment
-        run: echo "IMAGE=$ECR_REPO_URI:${{ steps.image-tag.outputs.tag }}" >> "$GITHUB_ENV"
-
-      - name: 🔁 Deploy to Staging Server via SSH
+      - name: 🔁 Deploy to EC2 via SSH (key-based auth)
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.STAGING_HOST }}
-          username: ${{ secrets.STAGING_USER }}
-          key: ${{ secrets.STAGING_SSH_KEY }}
-          envs: DOTENV_CONTENT,IMAGE,AWS_REGION,ECR_REPO_URI
+          host: ${{ secrets.EC2_HOST_STG }}
+          username: ${{ secrets.EC2_USERNAME_STG }}
+          key: ${{ secrets.EC2_PRIVATE_KEY_STG }}
+          port: ${{ secrets.EC2_PORT_STG }}
           script: |
-            echo "📦 Writing .env file"
-            echo "$DOTENV_CONTENT" > .env
+            export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+            export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            export AWS_REGION=${{ secrets.AWS_REGION }}
+            export ECR_REPO_URI=${{ secrets.ECR_REPOSITORY_URI }}
+            export IMAGE_TAG=${{ steps.image-tag.outputs.tag }}
+            IMAGE="$ECR_REPO_URI:$IMAGE_TAG"
 
-            echo "🔐 Logging in to ECR"
-            aws ecr get-login-password --region $AWS_REGION | \
-            docker login --username AWS --password-stdin $ECR_REPO_URI
+            echo "🔓 Logging into ECR..."
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO_URI
 
-            echo "📥 Pulling Docker image: $IMAGE"
-            docker pull $IMAGE
+            echo "📥 Pulling image: $IMAGE"
+            docker pull $IMAGE || exit 1
 
             echo "🛑 Stopping and removing old container (if running)"
-            docker stop my-app || true
-            docker rm my-app || true
+            docker stop my-app || echo "No running container to stop"
+            docker rm my-app || echo "No container to remove"
 
-            echo "🚀 Starting new container with .env"
-            docker run -d --name my-app --env-file .env -p 80:3000 $IMAGE
-
-            echo "🧹 Cleaning up .env file"
-            rm .env
-
-
-
-
-
-
-#             - name: 📁 Save SSH Private Key
-#   run: |
-#     echo "${{ secrets.SSH_PRIVATE_KEY }}" > private_key.pem
-#     chmod 600 private_key.pem
-
-# - name: 🟢 Run SSH Command Directly
-#   run: |
-#     ssh -i private_key.pem -p ${{ secrets.SSH_PORT }} -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-#       echo "✅ Logged in!"
-#       docker ps
-#       # Add more deployment commands here
-#     EOF
-
+            echo "🚀 Running new container"
+            docker run -d --name my-app -p 3000:3000 $IMAGE
