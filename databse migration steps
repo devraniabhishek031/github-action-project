@@ -1,0 +1,24 @@
+Just create the migrations directory at the root of your project:
+
+bash
+Copy
+Edit
+mkdir migrations
+Then generate your first migration file (example: create-users):
+
+bash
+Copy
+Edit
+npx sequelize-cli migration:generate --name create-users
+This will create something like:
+
+lua
+Copy
+Edit
+migrations/20250630124501-create-users.js
+Then run:
+
+bash
+Copy
+Edit
+npm run migration
